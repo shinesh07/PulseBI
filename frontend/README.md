@@ -1,48 +1,37 @@
-# PulseBI frontend
+# PulseBI Next.js Frontend
 
-One file: `index.html`. No build step, no npm, no framework.
+A modern, high-performance Next.js application built with **React**, **TypeScript**, **Tailwind CSS**, and **Lucide Icons** for the **PulseBI Governed KPI Engine**.
 
-## Why a single file
+---
 
-A hackathon demo fails on the boring things — a missing `node_modules`, a
-version mismatch, a dead network on the presenting laptop. This has no install
-step and no runtime dependencies, so it cannot fail that way. Open the backend
-and the page is there.
+## How to Run
 
-## Run it
-
-It is served by the backend, so there is nothing separate to start:
-
+### 1. Start the FastAPI Backend Server (Port 8000)
 ```bash
 cd ../backend
+source .venv/bin/activate
 python -m uvicorn app.api:app --port 8000
 ```
 
-Then open <http://localhost:8000>.
+### 2. Start the Next.js Frontend Dev Server (Port 3000)
+```bash
+cd ../frontend
+npm run dev
+```
 
-To edit, change `index.html` and refresh. No rebuild.
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
-## What it renders
+---
 
-| Section | Source endpoint |
-| :-- | :-- |
-| Scenario and persona pickers | `/api/scenarios`, `/api/health` |
-| Summary stat row | `/api/analyse` |
-| Finding cards, evidence drawers, action cards | `/api/analyse` |
-| Upvote / downvote controls | `/api/feedback` |
-| Cross-source reconciliation table | `/api/analyse` |
-| Source freshness table | `/api/analyse` |
-| Revenue waterfall · margin bridge | `/api/decomposition` |
-| Cold-start shrinkage curve | `/api/cold-start`, `/api/cold-start/{entity}` |
-| Runtime telemetry · FDR detail | `/api/analyse` |
+## Features & Components
 
-## Design notes
-
-- **It hardcodes no KPI, product or entity id.** Everything is discovered from
-  the API, which is the same rule the analysis code follows. The cold-start
-  entity comes from `/api/cold-start`, not from a literal in the JavaScript.
-- **Theme-aware.** Light and dark are both defined at token level and both are
-  verified.
-- **Semantic colour is separate from the accent.** Green, amber and red mean
-  detected, low-confidence and abstained — not decoration.
-- The only external request is Google Fonts, which falls back cleanly offline.
+* **Glassmorphic Theme**: Sleek dark-mode aesthetic with custom design tokens, backdrop filters, and HSL tailored indicators.
+* **Interactive Workbench**: Scenario presets, persona switcher (`CFO_EXECUTIVE`, `VP_GROWTH`, `VP_OPERATIONS`, `DATA_ANALYST`), date window controls, and baseline mode (`MATCHED_LENGTH` / `AS_REPORTED`).
+* **Multi-Factor Waterfall Visualizers**:
+  * **PVM Waterfall**: Price, Volume, Mix, Entering Products, Exiting Products with mathematical closure checks.
+  * **Shapley Gross Margin Bridge**: Ratio decomposition across 32 counterfactual states.
+* **Persona Findings & Machine-Verified Insights**: Filter by decision (`DETECTED`, `LOW_CONFIDENCE`, `ABSTAIN`), view RBAC masked fields, expandable JSON evidence ledger, and structured actionable recommendations.
+* **Analyst Feedback Loop**: Interactive upvote/downvote re-ranking controls.
+* **Reconciliation & Freshness**: Interactive cross-source reconciliation and SLA freshness monitor.
+* **Cold Start Visualizer**: Empirical Bayes shrinkage curve for newly launched SKUs.
+* **API Proxy**: API requests to `/api/*` on port 3000 are automatically proxied to `http://localhost:8000` via `next.config.ts`.

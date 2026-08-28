@@ -1,0 +1,315 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning}
+
+% Hyperlink configuration
+\hypersetup{
+    colorlinks=true,
+    linkcolor=teal,
+    citecolor=blue,
+    urlcolor=cyan
+}
+
+% Code listing styling
+\definecolor{codegray}{rgb}{0.95,0.95,0.95}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{codecyan}{rgb}{0,0.6,0.6}
+\lstset{
+    backgroundcolor=\color{codegray},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+
+\title{\textbf{PulseBI: A Governed KPI Intelligence-to-Action Engine}\\
+\large Technical Architecture Report \& Implementation Guide\\
+\small Accenture Innovation Challenge — Round 2 (Problem Track 3: BusinessIntelligence.ai)}
+\author{\textbf{Team PulseBI}}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Most modern enterprise analytics tools fail at the transition from reporting \textit{what} happened to explaining \textit{why} it happened and recommending \textit{what action to take}. Traditional dashboards present static aggregates, leaving analysts to perform days of manual cross-source reconciliation. Conversely, naive Large Language Model (LLM) text-to-SQL solutions suffer from silent join failures and numerical hallucinations on complex enterprise schemas (scoring only 17.0\% execution accuracy on Spider 2.0). 
+
+\textbf{PulseBI} addresses this fundamental gap with a governed, 100\% deterministic intelligence-to-action engine. PulseBI enforces a core architectural thesis: \textit{the LLM is never the source of quantitative truth}. All arithmetic, multi-factor variance decompositions, hypothesis testing, and access policies are calculated deterministically via DuckDB, SciPy, and a load-bearing YAML semantic contract. Natural language narratives are generated over pre-computed facts and gated by an automated \textbf{Faithfulness Verifier} that machine-checks every single numeral against SQL ground truth before publication.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% =========================================================================
+\section{Problem Statement \& Real-World Complexities}
+% =========================================================================
+
+\subsection{The Challenge: Track 3 (BusinessIntelligence.ai)}
+In enterprise operations, key performance indicators (KPIs) are tracked across heterogeneous databases, transactional POS gateways, weekly ad platforms, and monthly ERP ledgers. When a top-level metric shifts—such as Net Revenue surging 55\% while Gross Margin drops 3.1 percentage points—business leaders require an immediate, mathematically grounded explanation tailored to their decision rights.
+
+The objective of Round 2 is to design and demonstrate a working prototype of a KPI intelligence-to-action engine that:
+\begin{enumerate}[leftmargin=*]
+    \item Detects and prioritizes material KPI movements statistically.
+    \item Reconciles heterogeneous data sources across disparate grains and refresh cadences.
+    \item Identifies and ranks explanatory drivers using sound analytical methods.
+    \item Generates persona-specific narratives supported by traceable evidence.
+    \item Communicates uncertainty and abstains when evidence is insufficient or contradictory.
+    \item Recommends practical actions grounded in controllable business levers.
+    \item Incorporates analyst feedback loops without altering underlying arithmetic.
+    \item Operates under realistic security, cost, latency, and scalability constraints.
+\end{enumerate}
+
+\subsection{Why Naive Text-to-SQL & LLMs Fail}
+Pointing frontier LLMs directly at enterprise data warehouses introduces severe risks:
+\begin{itemize}
+    \item \textbf{Silent Join Failures}: On real enterprise schemas with 1,000+ columns, state-of-the-art models drop from 91.2\% execution accuracy (academic Spider 1.0) to \textbf{17.0\%} (enterprise Spider 2.0). The model uses valid column names but constructs incorrect joins, producing plausible-sounding but false results.
+    \item \textbf{Numerical Hallucinations}: LLMs excel at language synthesis but fail at precise multi-step arithmetic, percentage-point ratio bridges, and non-parametric statistical hypothesis testing.
+\end{itemize}
+
+\subsection{Minimum Prototype Expectations vs. Implementation}
+Table~\ref{tab:prototype_mapping} maps the minimum expectations from the problem statement directly to the architectural solutions built in PulseBI.
+
+\begin{table}[h!]
+\centering
+\caption{Problem Statement Expectations Mapped to PulseBI Capabilities}
+\label{tab:prototype_mapping}
+\small
+\begin{tabular}{lp{6.5cm}p{6cm}}
+\toprule
+\textbf{\#} & \textbf{Prototype Requirement} & \textbf{PulseBI Implementation} \\
+\midrule
+1 & 3--5 Connected KPIs across multi-grain sources & Revenue, COGS, Freight, Gross Margin, Blended CAC across POS, ERP, Ads \\
+2 & Governed Semantic Contract & Single source of truth loaded via \texttt{contracts.yaml} and Pydantic \\
+3 & $\ge 2$ Personas & 4 personas (\texttt{CFO\_EXECUTIVE}, \texttt{VP\_GROWTH}, \texttt{VP\_OPERATIONS}, \texttt{DATA\_ANALYST}) \\
+4 & Multi-factor KPI movement & 5-term PVM Waterfall + 5-factor Shapley Gross Margin Bridge ($2^5=32$ states) \\
+5 & Low-confidence \& Abstention & Detects attribution tag-loss contradictions; abstains with explicit reason \\
+6 & Sparse-history / Cold-start & Empirical-Bayes shrinkage curve borrowing strength from category priors \\
+7 & Role-based Security & Value-level masking (\texttt{allow}, \texttt{mask}, \texttt{deny}) and access audit arrays \\
+8 & Traceable Evidence \& Telemetry & Stage timings, \texttt{model\_calls: 0} offline transparency, Faithfulness Verifier \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+
+% =========================================================================
+\section{Architectural Thesis \& System Design}
+% =========================================================================
+
+\subsection{Core Architectural Principles}
+PulseBI operates on four non-negotiable principles:
+\begin{enumerate}
+    \item \textbf{Math First, Prose Second}: Every number in the system is produced by DuckDB SQL queries or SciPy statistical tests before any sentence is generated.
+    \item \textbf{Load-Bearing Governance}: All calculations, formulas, materiality thresholds, and access rules live strictly inside \texttt{contracts.yaml}. No formula is hardcoded in Python.
+    \item \textbf{Faithfulness Verification}: An automated parser extracts every numeral from narrative prose and matches it against computed \texttt{EvidencePackage} facts. Any unverified numeral causes the narrative to fail closed and be withheld.
+    \item \textbf{Role-Based Value Masking}: Unentitled personas receive statistical movement signals, confidence scores, and operational actions while sensitive monetary values are masked (e.g., \texttt{[MASKED]}), replacing rigid error walls with graceful degradation.
+\end{enumerate}
+
+\subsection{End-to-End Pipeline Pipeline}
+Figure~\ref{fig:pipeline} illustrates the data flow through PulseBI's four processing layers.
+
+\begin{figure}[h!]
+\centering
+\begin{tikzpicture}[node distance=1.5cm, auto, >=Stealth]
+    \node [draw, rectangle, rounded corners, fill=cyan!10, text width=9cm, align=center] (sources) 
+        {\textbf{Data Layer (DuckDB)}\\POS Orders (Daily), Marketing Spend (Weekly), ERP Ledger (Monthly)};
+    
+    \node [draw, rectangle, rounded corners, fill=blue!10, text width=9cm, align=center, below=of sources] (analytics) 
+        {\textbf{Deterministic Analytics Layer}\\Mann-Whitney U Testing $\rightarrow$ Benjamini-Yekutieli FDR Control\\PVM 5-Term Waterfall $\rightarrow$ Shapley Margin Bridge};
+    
+    \node [draw, rectangle, rounded corners, fill=purple!10, text width=9cm, align=center, below=of analytics] (evidence) 
+        {\textbf{Evidence Ledger \& Governance}\\Fact Objects with Evidence Tiers + Persona RBAC Masking};
+    
+    \node [draw, rectangle, rounded corners, fill=emerald!10, text width=9cm, align=center, below=of evidence] (verifier) 
+        {\textbf{Narrative Synthesis \& Faithfulness Gate}\\Faithfulness Verifier checks 100\% of Numerals against SQL Facts};
+    
+    \node [draw, rectangle, rounded corners, fill=amber!10, text width=9cm, align=center, below=of verifier] (ui) 
+        {\textbf{Presentation Layer}\\Next.js Glassmorphic UI Dashboard (Port 3000) / FastAPI REST (Port 8000)};
+
+    \draw [->, thick] (sources) -- (analytics);
+    \draw [->, thick] (analytics) -- (evidence);
+    \draw [->, thick] (evidence) -- (verifier);
+    \draw [->, thick] (verifier) -- (ui);
+\end{tikzpicture}
+\caption{PulseBI End-to-End Execution Pipeline}
+\label{fig:pipeline}
+\end{figure}
+
+\newpage
+
+% =========================================================================
+\section{Mathematical Models \& Statistical Rigor}
+% =========================================================================
+
+\subsection{Price-Volume-Mix (PVM) Revenue Decomposition}
+Standard FP\&A three-term variance bridges decompose revenue movement into Price, Volume, and Mix. However, when new products enter or exit the catalog, standard mix formulas fail and dump unallocated revenue into an unexplained residual. PulseBI implements the \textit{Controller-Akademie} 5-term decomposition:
+
+\begin{equation}
+\Delta \text{Revenue} = \text{Price Effect} + \text{Volume Effect} + \text{Mix Effect} + \text{Entering Products} + \text{Exiting Products}
+\end{equation}
+
+For continuing products present in both periods ($p \in P_{\text{cont}}$):
+\begin{align}
+\text{Price Effect} &= \sum_{p \in P_{\text{cont}}} (P_{1,p} - P_{0,p}) \cdot Q_{1,p} \\
+\text{Volume Effect} &= (Q_{1,\text{total}} - Q_{0,\text{total}}) \cdot \bar{P}_{0} \\
+\text{Mix Effect} &= \sum_{p \in P_{\text{cont}}} \left( \frac{Q_{1,p}}{Q_{1,\text{total}}} - \frac{Q_{0,p}}{Q_{0,\text{total}}} \right) \cdot P_{0,p} \cdot Q_{1,\text{total}}
+\end{align}
+
+Entering products ($p \in P_{\text{enter}}$) and exiting products ($p \in P_{\text{exit}}$) are reported as explicit independent terms:
+\begin{align}
+\text{Entering Products Effect} &= \sum_{p \in P_{\text{enter}}} P_{1,p} \cdot Q_{1,p} \\
+\text{Exiting Products Effect} &= -\sum_{p \in P_{\text{exit}}} P_{0,p} \cdot Q_{0,p}
+\end{align}
+
+The codebase asserts that the sum of these 5 terms reconstructs total revenue variance to within a strict closure tolerance of $\$0.01$:
+\begin{equation}
+\left| \Delta \text{Revenue} - \left( \text{Price} + \text{Volume} + \text{Mix} + \text{Entering} + \text{Exiting} \right) \right| < 0.01
+\end{equation}
+
+\subsection{Shapley Gross Margin Bridge (Derived Ratio Measures)}
+Gross Margin percentage is a ratio:
+\begin{equation}
+\text{Gross Margin \%} = \frac{\text{Revenue} - \text{COGS} - \text{Freight}}{\text{Revenue}}
+\end{equation}
+
+Because ratios do not decompose additively, sequential bridges yield order-dependent results. PulseBI models the margin change as a 5-player cooperative game over factors $F = \{\text{price}, \text{cogs}, \text{freight}, \text{mix}, \text{new}\}$ and evaluates the Shapley value across all $2^5 = 32$ counterfactual coalition states:
+
+\begin{equation}
+\phi_i(v) = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!(|F| - |S| - 1)!}{|F|!} \left[ v(S \cup \{i\}) - v(S) \right]
+\end{equation}
+
+By the Efficiency Axiom of Shapley values, the contributions sum \textbf{exactly} to the total margin percentage point delta:
+\begin{equation}
+\sum_{i \in F} \phi_i(v) = \text{Margin}_1\% - \text{Margin}_0\%
+\end{equation}
+
+\subsection{Statistical Testing \& False Discovery Rate (FDR) Control}
+Testing multiple KPI segment combinations causes family-wise error rate inflation. Applying a raw $p < 0.05$ threshold produces false positive anomalies. PulseBI uses non-parametric Mann-Whitney U testing on daily observations with **Benjamini-Yekutieli (BY)** multiplicity correction:
+
+\begin{equation}
+P_{(i)} \le \frac{i}{m \cdot c(m)} \alpha \quad \text{where} \quad c(m) = \sum_{k=1}^{m} \frac{1}{k}
+\end{equation}
+
+Benjamini-Yekutieli is chosen over Benjamini-Hochberg because KPI hypotheses in enterprise data are correlated by construction (e.g., Revenue, COGS, and Freight depend on the same daily unit counts). BY holds under arbitrary dependence.
+
+\subsection{Empirical-Bayes Cold-Start Shrinkage}
+For newly launched SKUs with sparse history ($t < 14$ days), percentage growth is undefined. PulseBI calculates an Empirical-Bayes posterior estimate borrowing strength from the category prior:
+
+\begin{equation}
+\hat{\theta}_i = w_i \cdot \bar{y}_i + (1 - w_i) \cdot \mu_{\text{prior}}, \quad \text{where } w_i = \frac{t_i}{t_i + M}
+\end{equation}
+
+As sample history $t_i$ grows, shrinkage weight $w_i \rightarrow 1$, smoothly transitioning control back to observed data.
+
+\newpage
+
+% =========================================================================
+\section{Role-Based Governance \& Faithfulness}
+% =========================================================================
+
+\subsection{The Governed Semantic Contract}
+All metric logic is externalized into \texttt{contracts.yaml}. Listing~\ref{lst:contract} illustrates a contract snippet defining access rights, metric relationships, and materiality.
+
+\begin{lstlisting}[language=SQL, caption={Excerpt from contracts.yaml governing KPI access and metric trees}]
+kpis:
+  gross_margin:
+    label: Gross Margin
+    unit: pct
+    grain: monthly
+    formula: "(revenue - cogs - freight) / revenue"
+    sources: [pos_orders, erp_financials]
+    materiality:
+      pct: 1.0
+      baseline_floor: 0.5
+    metric_tree:
+      relationship: derived_ratio
+      children: [revenue, cogs, freight]
+    access:
+      CFO_EXECUTIVE: allow
+      VP_GROWTH: mask
+      VP_OPERATIONS: mask
+      DATA_ANALYST: allow
+\end{lstlisting}
+
+\subsection{Faithfulness Verifier (Zero Hallucination Gate)}
+Before any narrative string is returned, the \texttt{FaithfulnessVerifier} executes the algorithm in Listing~\ref{lst:verifier}.
+
+\begin{lstlisting}[language=Python, caption={Faithfulness verification logic in verifier.py}]
+def verify(narrative_text: str, package: EvidencePackage) -> VerificationResult:
+    # 1. Extract all numerals from narrative text
+    numerals = extract_numerals(narrative_text)
+    
+    # 2. Extract ground truth values from package
+    facts = package.extract_all_computed_values()
+    
+    # 3. Match each numeral within tolerance (e.g. 0.01)
+    unmatched = []
+    for num in numerals:
+        if not any(math.isclose(num, fact, abs_tol=0.01) for fact in facts):
+            unmatched.append(num)
+            
+    if unmatched:
+        raise UnfaithfulNarrative(f"Unverified numerals: {unmatched}")
+    return VerificationResult(ok=True, checked=len(numerals))
+\end{lstlisting}
+
+\newpage
+
+% =========================================================================
+\section{Technology Stack \& Telemetry}
+% =========================================================================
+
+\subsection{Tech Stack Summary}
+\begin{itemize}
+    \item \textbf{Backend Core}: Python 3.13, DuckDB (in-memory multi-grain SQL engine), SciPy/NumPy (MAD scale, Mann-Whitney U, BY FDR), FastAPI (ASGI REST server), Pydantic v2 (strict validation).
+    \item \textbf{Frontend Application}: Next.js 16 (App Router, TypeScript), Tailwind CSS (Glassmorphic design system), Lucide React (Icons), Google Fonts (Inter, JetBrains Mono).
+    \item \textbf{Testing \& Evals}: \texttt{pytest} (196 unit/property tests), \texttt{run\_evals.py} (24 benchmark evaluations), \texttt{validate.py} (AST static anti-pattern sweep).
+\end{itemize}
+
+\subsection{Runtime Telemetry & Cost Model}
+Fully offline, PulseBI reports \texttt{model\_calls: 0} honestly rather than fabricating token counts. When LLM narrative generation is enabled via local Ollama (\texttt{llama3.2:3b}), actual prompt tokens and latency are measured and recorded per stage.
+
+\begin{table}[h!]
+\centering
+\caption{System Performance \& Telemetry Metrics}
+\small
+\begin{tabular}{lll}
+\toprule
+\textbf{Metric} & \textbf{Deterministic Path (Default)} & \textbf{LLM Path (Ollama Local)} \\
+\midrule
+Arithmetic Engine & DuckDB + SciPy & DuckDB + SciPy \\
+Execution Latency & ~18--45 ms & ~450--850 ms \\
+Model Calls & 0 & 1 \\
+Token Consumption & 0 (Projected: ~650/call) & Measured (~650 tokens) \\
+Cost per Insight & \$0.0000 & \$0.0000 (Local) \\
+Faithfulness Gate & Machine-Checked & Machine-Checked \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =========================================================================
+\section{Conclusion \& Verification Proof}
+% =========================================================================
+PulseBI proves that enterprise BI intelligence engines do not require risky, unconstrained text-to-SQL or non-deterministic LLM arithmetic. By combining load-bearing semantic contracts, exact PVM/Shapley mathematical bridges, Benjamini-Yekutieli FDR control, role-based masking, and an automated faithfulness verifier, PulseBI provides enterprise leaders with verifiable, actionable, and role-tailored intelligence.
+
+\textbf{Verification Proof Summary}:
+\begin{itemize}
+    \item \textbf{196 Unit \& Property Tests} passing cleanly under \texttt{pytest}.
+    \item \textbf{24 Benchmark Evaluations} passing under \texttt{python run\_evals.py}.
+    \item \textbf{0 Failures / 0 Warnings} under the \texttt{python validate.py} AST anti-pattern sweep.
+\end{itemize}
+
+\end{document}

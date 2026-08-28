@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PulseBI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@600;700;900&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+:root{
+  --ground:#F4F6F8;--surface:#fff;--surface-2:#EAEFF2;--ink:#111820;--ink-2:#42525B;--ink-3:#6C7F88;
+  --rule:#D6DFE4;--rule-2:#B9C7CE;--accent:#175A6B;--accent-soft:#E0EEF1;
+  --ok:#2C6E49;--ok-soft:#E3F0E8;--warn:#8A6008;--warn-soft:#F7EEDB;--bad:#9C3320;--bad-soft:#F8E7E2;
+  --shadow:0 1px 2px rgba(17,24,32,.05),0 8px 24px -12px rgba(17,24,32,.14);
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#0C1214;--surface:#121B1F;--surface-2:#18242A;--ink:#E4ECEE;--ink-2:#A7B9C0;--ink-3:#7A8E97;
+  --rule:#243238;--rule-2:#33454D;--accent:#5FB3C6;--accent-soft:#12303A;
+  --ok:#72C391;--ok-soft:#13291D;--warn:#D9A63C;--warn-soft:#2A2212;--bad:#E28268;--bad-soft:#2D1A15;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"Source Serif 4",Georgia,serif;font-size:15px;line-height:1.6}
+.wrap{max-width:1240px;margin:0 auto;padding:0 24px 80px}
+header{padding:32px 0 20px;border-bottom:2px solid var(--ink)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
+h1{font-family:Chivo,sans-serif;font-weight:900;font-size:clamp(1.9rem,4vw,2.7rem);line-height:1;letter-spacing:-.03em;margin:0 0 10px}
+.sub{color:var(--ink-2);max-width:64ch;margin:0}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;padding:18px 0;border-bottom:1px solid var(--rule)}
+.field{display:flex;flex-direction:column;gap:5px}
+label{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+select,input,button{font-family:"IBM Plex Mono",monospace;font-size:12.5px;padding:7px 10px;border:1px solid var(--rule-2);border-radius:2px;background:var(--surface);color:var(--ink)}
+button{background:var(--accent);color:#fff;border-color:var(--accent);cursor:pointer;font-weight:600;letter-spacing:.04em}
+button:hover{filter:brightness(1.1)}
+button:disabled{opacity:.5;cursor:wait}
+.bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);margin:20px 0;border-radius:2px;overflow:hidden}
+.stat{background:var(--surface);padding:14px 16px}
+.stat .k{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:5px}
+.stat .v{font-family:Chivo,sans-serif;font-weight:900;font-size:1.5rem;letter-spacing:-.02em;font-variant-numeric:tabular-nums;display:block}
+.stat .n{font-size:.8rem;color:var(--ink-2);margin:2px 0 0}
+h2{font-family:Chivo,sans-serif;font-weight:700;font-size:1.15rem;margin:32px 0 4px;letter-spacing:-.01em}
+.hint{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--rule)}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:16px 18px;margin-bottom:10px;box-shadow:var(--shadow)}
+.card.detected{border-left:3px solid var(--ok)}
+.card.low{border-left:3px solid var(--warn)}
+.card.abstain{border-left:3px solid var(--bad);background:var(--bad-soft)}
+.chead{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;margin-bottom:8px}
+.ckpi{font-family:Chivo,sans-serif;font-weight:700;font-size:1.02rem}
+.cmove{font-family:"IBM Plex Mono",monospace;font-size:13px;font-variant-numeric:tabular-nums;margin-left:auto;font-weight:600}
+.pill{font-family:"IBM Plex Mono",monospace;font-size:9.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;padding:3px 7px;border-radius:2px}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.neutral{background:var(--surface-2);color:var(--ink-2)}
+.narr{margin:8px 0;color:var(--ink)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--ink-3);margin-top:10px;padding-top:9px;border-top:1px solid var(--rule)}
+details{margin-top:9px}
+summary{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);cursor:pointer}
+pre{background:var(--surface-2);border:1px solid var(--rule);border-radius:2px;padding:11px;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:11px;line-height:1.5;margin:8px 0 0;color:var(--ink)}
+table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:6px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);background:var(--surface-2)}
+.scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:2px;background:var(--surface)}
+.wf{display:flex;flex-direction:column;gap:5px;margin-top:10px}
+.wfrow{display:grid;grid-template-columns:150px 1fr 130px;gap:12px;align-items:center;font-size:13px}
+.wfname{font-family:Chivo,sans-serif;font-weight:700;font-size:12.5px}
+.wftrack{position:relative;height:22px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.wfbar{position:absolute;top:0;bottom:0;border-radius:1px}
+.wfbar.pos{background:var(--ok)}.wfbar.neg{background:var(--bad)}
+.wfzero{position:absolute;top:0;bottom:0;width:1px;background:var(--rule-2)}
+.wfval{font-family:"IBM Plex Mono",monospace;font-size:12px;font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+.closes{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:2px;background:var(--ok-soft);color:var(--ok);margin-left:8px}
+.vote{display:flex;gap:6px;align-items:center;margin-top:9px;padding-top:9px;border-top:1px solid var(--rule)}
+.vote button{padding:4px 10px;font-size:11px;background:var(--surface);color:var(--ink-2);border:1px solid var(--rule-2)}
+.vote button:hover{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+.vote .fbnote{font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--accent)}
+.curve{display:flex;flex-direction:column;gap:3px;margin-top:8px}
+.crow{display:grid;grid-template-columns:52px 1fr 92px;gap:10px;align-items:center;font-family:"IBM Plex Mono",monospace;font-size:11px}
+.ctrack{height:14px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.cbar{display:block;height:100%;background:var(--accent)}
+.two{display:grid;grid-template-columns:1fr;gap:18px}
+@media(min-width:960px){.two{grid-template-columns:1fr 1fr}}
+.msg{padding:14px 16px;border-radius:2px;font-family:"IBM Plex Mono",monospace;font-size:12px}
+.msg.err{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad)}
+.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+footer{margin-top:44px;padding-top:16px;border-top:2px solid var(--ink);font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--ink-3)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Governed KPI Intelligence-to-Action Engine</p>
+  <h1>PulseBI</h1>
+  <p class="sub">Every number here was computed by SQL or statistics before any sentence was written. Each narrative is machine-checked: if a numeral does not resolve to a computed fact, the sentence is withheld.</p>
+</header>
+
+<div class="controls">
+  <div class="field"><label for="scenario">Scenario</label><select id="scenario"></select></div>
+  <div class="field"><label for="persona">Persona</label><select id="persona"></select></div>
+  <div class="field"><label for="bs">Baseline from</label><input id="bs" type="date"></div>
+  <div class="field"><label for="be">Baseline to</label><input id="be" type="date"></div>
+  <div class="field"><label for="es">Event from</label><input id="es" type="date"></div>
+  <div class="field"><label for="ee">Event to</label><input id="ee" type="date"></div>
+  <div class="field"><label for="mode">Baseline mode</label><select id="mode">
+    <option value="AS_REPORTED">As reported</option>
+    <option value="MATCHED_LENGTH">Matched length</option>
+  </select></div>
+  <button id="run">Analyse</button>
+</div>
+
+<p id="scenarioNote" class="sub" style="margin:12px 0 0;font-size:14px"></p>
+<div id="status"></div>
+<div id="out"></div>
+
+<footer>PulseBI · contract-driven · decisions use adjusted p-values only · confidence is a governance rubric, not a calibrated probability</footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = (v, unit) => {
+  if (v === null || v === undefined) return '—';
+  if (unit === 'usd') return '$' + v.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  if (unit === 'pct') return v.toFixed(2) + '%';
+  return v.toLocaleString(undefined,{maximumFractionDigits:4});
+};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pillFor = d => d === 'DETECTED' ? 'ok' : d === 'LOW_CONFIDENCE' ? 'warn' : d === 'ABSTAIN' ? 'bad' : 'neutral';
+
+let SCENARIOS = [];
+
+async function boot(){
+  const [health, scen] = await Promise.all([
+    fetch('/api/health').then(r=>r.json()),
+    fetch('/api/scenarios').then(r=>r.json())
+  ]);
+  SCENARIOS = scen.scenarios;
+  $('persona').innerHTML = health.personas.map(p=>`<option value="${p}">${p.replace(/_/g,' ')}</option>`).join('');
+  $('scenario').innerHTML = SCENARIOS.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  applyScenario();
+  run();
+}
+
+function applyScenario(){
+  const s = SCENARIOS.find(x=>x.id === $('scenario').value) || SCENARIOS[0];
+  if(!s) return;
+  $('bs').value = s.baseline[0]; $('be').value = s.baseline[1];
+  $('es').value = s.event[0];    $('ee').value = s.event[1];
+  $('mode').value = s.baseline_mode;
+  $('scenarioNote').textContent = s.description;
+}
+
+async function run(){
+  $('run').disabled = true;
+  $('status').innerHTML = '<div class="msg">Running the pipeline…</div>';
+  const q = new URLSearchParams({
+    persona: $('persona').value,
+    baseline_start: $('bs').value, baseline_end: $('be').value,
+    event_start: $('es').value, event_end: $('ee').value,
+    baseline_mode: $('mode').value
+  });
+  try{
+    const res = await fetch('/api/analyse?' + q);
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.detail || res.statusText);
+    render(data);
+    $('status').innerHTML = '';
+  }catch(e){
+    $('status').innerHTML = `<div class="msg err">${esc(e.message)}</div>`;
+    $('out').innerHTML = '';
+  }finally{ $('run').disabled = false; }
+}
+
+function render(d){
+  const t = d.telemetry, det = d.detection;
+  const counts = d.summary;
+  const verified = d.findings.filter(f=>f.narrative_verified).length;
+  const numerals = d.findings.reduce((a,f)=>a+f.numerals_checked,0);
+
+  const stats = `
+  <div class="bar">
+    <div class="stat"><span class="k">Detected</span><span class="v" style="color:var(--ok)">${counts.DETECTED||0}</span><p class="n">${counts.LOW_CONFIDENCE||0} low confidence</p></div>
+    <div class="stat"><span class="k">Abstained</span><span class="v" style="color:var(--bad)">${counts.ABSTAIN||0}</span><p class="n">evidence insufficient</p></div>
+    <div class="stat"><span class="k">Hypotheses tested</span><span class="v">${det.hypotheses_tested}</span><p class="n">of ${det.candidates_evaluated} candidates</p></div>
+    <div class="stat"><span class="k">Raw → corrected</span><span class="v">${det.raw_significant} → ${det.significant_after_correction}</span><p class="n">${det.fdr_method.replace(/_/g,'-')}</p></div>
+    <div class="stat"><span class="k">Numerals verified</span><span class="v" style="color:var(--ok)">${numerals}</span><p class="n">${verified}/${d.findings.length} narratives passed</p></div>
+    <div class="stat"><span class="k">Latency</span><span class="v">${t.total_ms.toFixed(0)}<span style="font-size:.9rem"> ms</span></span><p class="n">${(t.deterministic_share*100).toFixed(1)}% deterministic</p></div>
+  </div>`;
+
+  const findings = d.findings.map(f=>{
+    const e = f.evidence, dec = e.decision, cls = dec==='DETECTED'?'detected':dec==='ABSTAIN'?'abstain':'low';
+    const masked = f.access.level === 'mask';
+    const st = e.statistical_test, fd = e.fdr;
+    return `<div class="card ${cls}">
+      <div class="chead">
+        <span class="ckpi">${esc(e.label)} · ${esc(e.entity)}</span>
+        <span class="pill ${pillFor(dec)}">${dec.replace(/_/g,' ')}</span>
+        ${masked ? '<span class="pill neutral">masked</span>' : ''}
+        <span class="pill neutral">${esc(e.observed_change.change_type.replace(/_/g,' '))}</span>
+        <span class="cmove">${esc(e.observed_change.describe || describeChange(e))}</span>
+      </div>
+      ${f.narrative ? `<p class="narr">${esc(f.narrative)}</p>` : '<p class="narr"><em>Narrative withheld: a numeral failed verification.</em></p>'}
+      <div class="meta">
+        <span>confidence ${e.confidence.toFixed(3)} (${esc(e.confidence_scale)})</span>
+        <span>materiality ${e.materiality.exceedance.toFixed(1)}×</span>
+        <span>${st.tested ? `adj p ${fd.adjusted_p_value.toExponential(2)}` : 'no test: ' + esc(st.not_tested_reason||'n/a')}</span>
+        <span>${f.numerals_checked} numerals checked${f.narrative_verified?' ✓':''}</span>
+      </div>
+      <details><summary>Evidence</summary>
+        <pre>${esc(JSON.stringify({
+          decision_reason: e.decision_reason,
+          window: `${e.event_window.start} → ${e.event_window.end} (${e.event_window.days}d)`,
+          baseline: `${e.baseline_window.days}d, mode ${e.baseline_mode}, scale ${e.baseline_scale.toFixed(4)}`,
+          baseline_value: e.baseline_value, current_value: e.current_value,
+          statistical_test: st, fdr: fd,
+          data_quality: e.data_quality,
+          contradicting_evidence: e.contradicting_evidence,
+          unblock: e.unblock_instructions,
+          access: f.access
+        }, null, 2))}</pre>
+      </details>
+      ${f.action ? `<details><summary>Recommended action</summary><pre>${esc(JSON.stringify(f.action, null, 2))}</pre></details>` : ''}
+      <div class="vote">
+        <button data-kpi="${esc(e.kpi)}" data-entity="${esc(e.entity)}" data-rating="UPVOTE">▲ more relevant</button>
+        <button data-kpi="${esc(e.kpi)}" data-entity="${esc(e.entity)}" data-rating="DOWNVOTE">▼ less relevant</button>
+        <span class="fbnote">${f.feedback ? esc(f.feedback.describe) : 'ranking only — never alters a computed value'}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  const checks = d.reconciliation.checks.map(c=>`<tr>
+    <td><span class="pill ${c.status==='CONSISTENT'?'ok':c.status==='CONTRADICTORY'?'bad':'warn'}">${c.status.replace(/_/g,' ')}</span></td>
+    <td>${esc(c.label)}</td><td>${esc(c.detail)}</td>
+    <td class="mono">${c.affected_kpis.length?esc(c.affected_kpis.join(', ')):'all'}</td></tr>`).join('');
+
+  const fresh = d.freshness.map(f=>`<tr><td class="mono">${esc(f.source)}</td><td class="mono">${f.age_hours}h</td>
+    <td class="mono">${f.sla_hours}h</td><td><span class="pill ${f.is_stale?'warn':'ok'}">${f.is_stale?'stale':'fresh'}</span></td></tr>`).join('');
+
+  const acc = {}; d.access_audit.forEach(a=>acc[a.level]=(acc[a.level]||0)+1);
+
+  const extras = `
+    <h2>Findings</h2>
+    <p class="hint">${esc(d.persona.replace(/_/g,' '))} · ${d.event_window[0]} → ${d.event_window[1]} · access: ${Object.entries(acc).map(([k,v])=>`${v} ${k}`).join(', ')}</p>
+    ${findings || '<div class="msg">No findings visible to this persona.</div>'}
+
+    <h2>Cross-source reconciliation</h2>
+    <p class="hint">status: ${d.reconciliation.status.replace(/_/g,' ')} · evidence coverage ${(d.reconciliation.evidence_coverage*100).toFixed(0)}%</p>
+    <div class="scroll"><table><thead><tr><th>Status</th><th>Check</th><th>Detail</th><th>Affects</th></tr></thead><tbody>${checks}</tbody></table></div>
+
+    <h2>Source freshness</h2>
+    <p class="hint">measured against the SLA each source declares in the contract</p>
+    <div class="scroll"><table><thead><tr><th>Source</th><th>Age</th><th>SLA</th><th>State</th></tr></thead><tbody>${fresh}</tbody></table></div>
+
+    <div class="two">
+      <div>
+        <h2>Revenue waterfall</h2>
+        <p class="hint" id="wfHint"></p>
+        <div id="wfRev"></div>
+      </div>
+      <div>
+        <h2>Margin bridge</h2>
+        <p class="hint" id="mbHint"></p>
+        <div id="wfMargin"></div>
+      </div>
+    </div>
+
+    <h2>Cold start · shrinkage</h2>
+    <p class="hint" id="csHint">how much the estimate leans on the category prior as evidence accumulates</p>
+    <div id="coldStart"></div>
+
+    <h2>Runtime telemetry</h2>
+    <p class="hint">measured stage timings · ${t.llm.mode.replace(/_/g,' ')} · ${t.llm.model_calls} model call(s)</p>
+    <pre>${esc(JSON.stringify(t, null, 2))}</pre>
+
+    <h2>Multiplicity correction</h2>
+    <p class="hint">only validly tested hypotheses enter the pool</p>
+    <pre>${esc(JSON.stringify(det, null, 2))}</pre>`;
+
+  $('out').innerHTML = stats + extras;
+  loadDecomposition();
+  loadColdStart();
+  document.querySelectorAll('.vote button').forEach(b => b.addEventListener('click', vote));
+}
+
+function waterfall(el, rows, unit){
+  const max = Math.max(...rows.map(r => Math.abs(r.value)), 1e-9);
+  el.innerHTML = '<div class="wf">' + rows.map(r => {
+    const pct = Math.abs(r.value) / max * 50;
+    const pos = r.value >= 0;
+    const style = pos ? `left:50%;width:${pct}%` : `right:50%;width:${pct}%`;
+    const sign = r.value > 0 ? '+' : r.value < 0 ? '\u2212' : '';
+    const v = unit === 'pp' ? `${sign}${Math.abs(r.value).toFixed(3)} pp`
+                            : `${sign}$${Math.abs(r.value).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+    return `<div class="wfrow" title="${esc(r.explanation || '')}">
+      <span class="wfname">${esc(r.label)}</span>
+      <span class="wftrack"><span class="wfzero" style="left:50%"></span>
+        <span class="wfbar ${pos?'pos':'neg'}" style="${style}"></span></span>
+      <span class="wfval" style="color:${pos?'var(--ok)':'var(--bad)'}">${v}</span></div>`;
+  }).join('') + '</div>';
+}
+
+async function loadDecomposition(){
+  try{
+    const d = await fetch('/api/decomposition').then(r=>r.json());
+    const w = d.revenue_waterfall, b = d.margin_bridge;
+
+    $('wfHint').innerHTML = `${w.method.replace(/_/g,'-')} · variance $${w.total_variance.toLocaleString(undefined,{maximumFractionDigits:0})}`
+      + (w.closes ? '<span class="closes">closes exactly</span>' : '');
+    waterfall($('wfRev'), w.terms, 'usd');
+
+    $('mbHint').innerHTML = `${b.prior_pct.toFixed(2)}% → ${b.current_pct.toFixed(2)}% (${b.delta_pp>=0?'+':''}${b.delta_pp.toFixed(2)} pp) · shapley`
+      + (b.closes ? '<span class="closes">closes exactly</span>' : '');
+    waterfall($('wfMargin'), b.contributions.map(c=>({label:c.label, value:c.value_pp, explanation:c.explanation})), 'pp');
+  }catch(e){ $('wfHint').textContent = 'unavailable: ' + e.message; }
+}
+
+async function loadColdStart(){
+  try{
+    // The entity is discovered, not named: the UI follows the same rule as the
+    // algorithms and hardcodes no product id.
+    const list = await fetch('/api/cold-start').then(r=>r.json());
+    if(!list.candidates || !list.candidates.length){
+      $('csHint').textContent = 'no entity currently below the ' + list.threshold_days + '-day threshold';
+      $('coldStart').innerHTML=''; return;
+    }
+    const d = await fetch('/api/cold-start/' + encodeURIComponent(list.candidates[0].entity)).then(r=>r.json());
+    if(d.detail){ $('coldStart').innerHTML=''; return; }
+    const e = d.estimate, curve = d.shrinkage_curve;
+    const maxW = Math.max(...curve.map(c=>c.interval_width), 1e-9);
+    $('csHint').textContent = `${e.sku} · ${e.days_observed} days · prior pool: ${e.pool_scope} · posterior ${e.posterior_mean.toFixed(1)} units/day, 90% CI [${e.credible_interval_90[0].toFixed(1)}, ${e.credible_interval_90[1].toFixed(1)}]`;
+    $('coldStart').innerHTML = '<div class="curve">' + curve.map(c=>`<div class="crow">
+      <span>day ${c.days}</span>
+      <span class="ctrack"><span class="cbar" style="width:${(c.shrinkage_weight*100).toFixed(1)}%"></span></span>
+      <span>${(c.shrinkage_weight*100).toFixed(1)}% prior</span></div>`).join('')
+      + '</div><p class="hint" style="border:0;margin-top:8px">prior weight falls as the SKU accumulates its own evidence; interval narrows from '
+      + maxW.toFixed(1) + ' to ' + curve[curve.length-1].interval_width.toFixed(1) + ' units</p>';
+  }catch(e){
+    $('csHint').textContent = 'shrinkage curve unavailable: ' + e.message;
+    $('coldStart').innerHTML = '';
+  }
+}
+
+async function vote(ev){
+  const b = ev.currentTarget;
+  await fetch('/api/feedback', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({persona:$('persona').value, kpi:b.dataset.kpi, entity:b.dataset.entity,
+                          rating:b.dataset.rating, comment:'dashboard vote'})});
+  run();
+}
+
+function describeChange(e){
+  const c = e.observed_change;
+  if(c.absolute_change === null) return c.relative_change_pct !== null ? c.relative_change_pct.toFixed(1)+'%' : '—';
+  const abs = fmt(c.absolute_change, e.unit === 'pct' ? null : e.unit);
+  return c.relative_change_pct !== null ? `${abs} (${c.relative_change_pct>=0?'+':''}${c.relative_change_pct.toFixed(1)}%)` : abs;
+}
+
+$('run').addEventListener('click', run);
+$('scenario').addEventListener('change', ()=>{applyScenario(); run();});
+$('persona').addEventListener('change', run);
+boot();
+</script>
+</body>
+</html>
