@@ -1,0 +1,256 @@
+# PulseBI Governed Semantic Contract
+#
+# This file is the single source of truth. Nothing in the codebase may hardcode
+# a metric formula, a materiality threshold, an access rule, or a confidence
+# weight -- it must be declared here and loaded through app.contracts.
+#
+# tests/test_contracts.py enforces this in both directions: every KPI an engine
+# computes must be declared here, and every KPI declared here must be computed.
+
+version: 2
+
+meta:
+  name: PulseBI Semantic Contract
+  owner: Data Platform
+  calendar: gregorian_month_start
+
+# --------------------------------------------------------------------------
+# Sources -- three systems, three grains, three refresh cadences.
+# --------------------------------------------------------------------------
+sources:
+  pos_orders:
+    file: pos_orders.csv
+    system: POS Checkout Gateway
+    grain: daily
+    refresh_cadence_minutes: 15
+    freshness_sla_hours: 2
+    date_column: date
+
+  marketing_spend:
+    file: marketing_spend.csv
+    system: Meta Ads / Google Ads connector
+    grain: weekly
+    refresh_cadence_minutes: 1440
+    freshness_sla_hours: 48
+    date_column: week_start
+
+  erp_financials:
+    file: erp_financials.csv
+    system: SAP ERP GL Ledger
+    grain: monthly
+    refresh_cadence_minutes: 43200
+    freshness_sla_hours: 720
+    date_column: month
+
+# --------------------------------------------------------------------------
+# Personas -- decision rights constrain which levers an action may propose.
+# --------------------------------------------------------------------------
+personas:
+  CFO_EXECUTIVE:
+    title: Chief Financial Officer
+    levers:
+      - Capital Allocation
+      - Pricing Tier / Surcharge
+      - Promo Rebate Structuring
+  VP_GROWTH:
+    title: VP Growth
+    levers:
+      - Reallocate Ad Spend
+      - Promotional Creative & Bundling
+      - Pause Channel
+  VP_OPERATIONS:
+    title: VP Operations
+    levers:
+      - Fulfilment Route Optimisation
+      - Switch Supplier
+      - Change Carrier SLA
+  DATA_ANALYST:
+    title: Lead Data Analyst
+    levers:
+      - Telemetry & Tag Verification
+      - Data Reconciliation
+
+# --------------------------------------------------------------------------
+# KPIs
+#
+# metric_tree.relationship drives which decomposition the engine may apply:
+#   additive       -- parent is the sum of children; PVM applies
+#   multiplicative -- parent is the product of children
+#   derived_ratio  -- parent is a ratio; NOT additively decomposable, needs the
+#                     Shapley margin bridge (see engines/margin_bridge.py)
+#   influencing    -- child affects parent with no closed-form relationship
+#
+# access: allow | mask | deny
+#   allow -- full value visible
+#   mask  -- movement visible, absolute value redacted
+#   deny  -- KPI not returned at all
+# --------------------------------------------------------------------------
+kpis:
+  revenue:
+    label: Revenue
+    unit: usd
+    grain: daily
+    formula: "SUM(units * price_per_unit)"
+    sources: [pos_orders]
+    materiality:
+      abs_usd: 10000.0
+      pct: 2.5
+      # Below $1k in a period, a revenue ratio is noise.
+      baseline_floor: 1000.0
+    metric_tree:
+      relationship: additive
+      children: []
+    lineage:
+      - { node: POS Checkout Gateway, type: transactional }
+      - { node: DuckDB In-Memory Staging, type: compute }
+      - { node: PVM Decomposition Engine, type: analytical }
+    access:
+      CFO_EXECUTIVE: allow
+      VP_GROWTH: allow
+      VP_OPERATIONS: mask
+      DATA_ANALYST: allow
+
+  cogs:
+    label: Cost of Goods Sold
+    unit: usd
+    grain: monthly
+    formula: "SUM(units * cogs_per_unit)"
+    sources: [pos_orders, erp_financials]
+    materiality:
+      abs_usd: 10000.0
+      pct: 2.5
+      # Same scale as revenue.
+      baseline_floor: 1000.0
+    metric_tree:
+      relationship: additive
+      children: []
+    lineage:
+      - { node: SAP ERP GL Ledger, type: financial }
+      - { node: DuckDB Reconciler, type: compute }
+    access:
+      CFO_EXECUTIVE: allow
+      VP_GROWTH: deny
+      VP_OPERATIONS: mask
+      DATA_ANALYST: allow
+
+  freight:
+    label: Inbound Freight
+    unit: usd
+    grain: monthly
+    formula: "SUM(units * freight_per_unit)"
+    sources: [pos_orders, erp_financials]
+    materiality:
+      abs_usd: 5000.0
+      pct: 2.5
+      # Freight is roughly a tenth of COGS at these volumes.
+      baseline_floor: 500.0
+    metric_tree:
+      relationship: additive
+      children: []
+    lineage:
+      - { node: SAP ERP GL Ledger, type: financial }
+      - { node: DuckDB Reconciler, type: compute }
+    access:
+      CFO_EXECUTIVE: allow
+      VP_GROWTH: mask
+      VP_OPERATIONS: allow
+      DATA_ANALYST: allow
+
+  gross_margin:
+    label: Gross Margin
+    unit: pct
+    grain: monthly
+    formula: "(revenue - cogs - freight) / revenue"
+    sources: [pos_orders, erp_financials]
+    materiality:
+      abs_usd: 0.0
+      pct: 1.0
+      # Half a margin point; below this a ratio-of-a-ratio is meaningless.
+      baseline_floor: 0.5
+    metric_tree:
+      relationship: derived_ratio
+      children: [revenue, cogs, freight]
+    lineage:
+      - { node: SAP ERP GL Ledger, type: financial }
+      - { node: Kuehne+Nagel Freight Feed, type: logistics }
+      - { node: DuckDB Reconciler, type: compute }
+      - { node: Shapley Margin Bridge, type: analytical }
+    access:
+      CFO_EXECUTIVE: allow
+      VP_GROWTH: mask
+      VP_OPERATIONS: mask
+      DATA_ANALYST: allow
+
+  blended_cac:
+    label: Blended CAC
+    unit: usd
+    grain: weekly
+    formula: "SUM(spend) / SUM(new_customers)"
+    sources: [marketing_spend, pos_orders]
+    materiality:
+      abs_usd: 5.0
+      pct: 10.0
+      # A sub-$1 CAC baseline means almost no acquisition happened.
+      baseline_floor: 1.0
+    metric_tree:
+      relationship: multiplicative
+      children: []
+    lineage:
+      - { node: Meta Ads Connector, type: marketing }
+      - { node: Week-to-Month Pro-Rata Allocator, type: compute }
+    access:
+      CFO_EXECUTIVE: allow
+      VP_GROWTH: allow
+      VP_OPERATIONS: deny
+      DATA_ANALYST: allow
+
+# --------------------------------------------------------------------------
+# Detection -- materiality gate plus false-discovery-rate control.
+# Testing many KPI x dimension slices inflates the family-wise error rate, so a
+# raw per-test threshold guarantees spurious findings. Benjamini-Hochberg bounds
+# the expected proportion of false discoveries among reported movements.
+# --------------------------------------------------------------------------
+detection:
+  fdr_alpha: 0.10
+
+  # Hypotheses in this engine are correlated by construction: revenue, COGS and
+  # freight for one product are near-deterministic functions of the same daily
+  # unit counts. Benjamini-Hochberg controls the FDR only under independence or
+  # positive regression dependence, neither of which is established here, so the
+  # default is Benjamini-Yekutieli, which holds under arbitrary dependence at the
+  # cost of power. Set to benjamini_hochberg only where independence is argued.
+  fdr_method: benjamini_yekutieli
+  min_baseline_points: 5
+  robust_scale: mad          # mad | std
+
+# --------------------------------------------------------------------------
+# Confidence and abstention.
+#
+# NOTE: these weights are a governance RUBRIC, not a calibrated probability.
+# The engine reports them as tier `business_rule`, and the narrative says so.
+# --------------------------------------------------------------------------
+confidence:
+  # Six measured evidence signals. Weights are a governance policy choice, not a
+  # fitted model -- see engines/confidence.py for what the resulting score does
+  # and does not mean. A signal that cannot be measured contributes zero, so
+  # missing evidence lowers confidence rather than defaulting to credit.
+  weights:
+    sample_size: 0.15
+    statistical_evidence: 0.25
+    effect_magnitude: 0.15
+    data_completeness: 0.15
+    attribution_integrity: 0.15
+    cross_source_consistency: 0.15
+  abstain_threshold: 0.50
+  # Between abstain_threshold and this, a finding is reported as LOW_CONFIDENCE:
+  # real enough to surface, not solid enough to act on unreviewed.
+  low_confidence_threshold: 0.70
+  action_threshold: 0.70
+  staleness_penalty_per_day: 0.05
+
+# --------------------------------------------------------------------------
+# Analyst feedback may reweight driver RANKING only, within these bounds.
+# It can never alter a computed value.
+# --------------------------------------------------------------------------
+feedback:
+  max_rank_weight_delta: 0.20

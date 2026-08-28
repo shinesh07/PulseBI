@@ -1,0 +1,21 @@
+# Only packages the code actually imports.
+#
+# The previous requirements file listed openai, pymongo, python-dotenv and
+# statsmodels, none of which were imported anywhere. A dependency list naming an
+# LLM SDK the code never calls is the first thing that invites the question of
+# whether the rest is real. openai is re-added only when app/narrative/llm.py
+# genuinely imports it.
+
+duckdb>=1.0
+pandas>=2.0
+numpy>=1.26
+scipy>=1.11
+pydantic>=2.6
+pyyaml>=6.0
+fastapi>=0.110
+uvicorn>=0.29
+httpx>=0.27
+
+# Test-only
+pytest>=8.0
+hypothesis>=6.100
