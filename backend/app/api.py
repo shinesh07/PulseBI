@@ -33,7 +33,10 @@ from app.narrative.verifier import UnfaithfulNarrative
 from app.pipeline import DetectionPipeline
 from app.telemetry import TelemetryTracker
 
-STATIC_DIR = Path(__file__).parent.parent / "static"
+# The frontend is a sibling of backend/, not buried inside it: it is a
+# first-class part of the project and a reviewer should find it without
+# hunting. Served from this process so the demo stays a single command.
+FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 
 app = FastAPI(
     title="PulseBI",
@@ -447,9 +450,11 @@ def decomposition(
 
 @app.get("/", include_in_schema=False)
 def dashboard() -> FileResponse:
-    index = STATIC_DIR / "index.html"
+    index = FRONTEND_DIR / "index.html"
     if not index.exists():
-        raise HTTPException(404, "Dashboard not built.")
+        raise HTTPException(
+            404, f"Frontend not found at {index}. Expected pulsebi/frontend/index.html."
+        )
     return FileResponse(index)
 
 

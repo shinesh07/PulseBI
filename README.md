@@ -21,6 +21,9 @@ python -m uvicorn app.api:app --port 8000            # dashboard at localhost:80
 
 Open **http://localhost:8000**. Interactive API docs at `/docs`.
 
+The frontend lives in `frontend/index.html` and is served by the backend, so
+there is nothing separate to start and no build step to run.
+
 ```bash
 pytest                  # 196 tests
 python run_evals.py     # 24 benchmarks
@@ -279,6 +282,7 @@ instead, and narratives say "association, not established causation".
 | Document | Contents |
 | :-- | :-- |
 | [`DEMO.md`](DEMO.md) | Five-minute demo script with timings and prepared Q&A |
+| [`frontend/README.md`](frontend/README.md) | What the dashboard renders and which endpoint feeds each section |
 | [`docs/01-review-of-original-prototype.md`](docs/01-review-of-original-prototype.md) | What was wrong with the prototype this replaces |
 | [`docs/02-research-and-plan.md`](docs/02-research-and-plan.md) | Prior-art survey and the build plan followed |
 | [`docs/03-parameters.md`](docs/03-parameters.md) | Every tunable value, where it lives, and why it holds that value |
@@ -287,6 +291,9 @@ instead, and narratives say "association, not established causation".
 ## Layout
 
 ```
+frontend/
+└── index.html               the dashboard: one file, no build step, no npm
+
 backend/
 ├── app/
 │   ├── contracts.yaml       single source of truth
@@ -304,7 +311,6 @@ backend/
 │   ├── governance/rbac.py   allow / mask / deny
 │   ├── telemetry.py         measured stages, labelled projections
 │   └── api.py               REST + dashboard
-├── static/index.html        no-build dashboard
 └── tests/                   196 tests
 ```
 
